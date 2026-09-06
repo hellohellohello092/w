@@ -1,9 +1,6 @@
 -- =========================================================================
 -- PART 1: ORIGINAL SCRIPT LOADSTRING (DEOBFUSCATION / SOURCE CONTAINER)
 -- =========================================================================
--- [Note]: The original raw payload you provided is wrapped safely here via loadstring 
--- to initialize the base environment hooks before our custom logic executes.
-
 local success, err = pcall(function()
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/Kaitofyp/Dead-Rails-Op-Script/refs/heads/main/obf_uI6ssbSG8oVC1Ax5fP5UShjV4YiMz6PJ3Ycvn3TZ3y127JbLmukAhBdy1vryv6zr.lua.txt"))()
 end)
@@ -14,15 +11,58 @@ end
 
 
 -- =========================================================================
--- PART 2: ADVANCED HOLY HAND GRENADE SERVER & CLIENT SYSTEM
+-- PART 2: ITEM DATABASE & HOLY HAND GRENADE SELECTION CONFIGURATION
 -- =========================================================================
+local ITEM_DATABASE = {
+	["Revolver"] = {
+		ItemID = "item_revolver",
+		DisplayName = "Revolver",
+		Category = "Weapon",
+		MaxStack = 1,
+		IsValuable = false
+	},
+	["Rifle"] = {
+		ItemID = "item_rifle",
+		DisplayName = "Rifle",
+		Category = "Weapon",
+		MaxStack = 1,
+		IsValuable = false
+	},
+	["Shotgun"] = {
+		ItemID = "item_shotgun",
+		DisplayName = "Shotgun",
+		Category = "Weapon",
+		MaxStack = 1,
+		IsValuable = false
+	},
+	["HolyHandGrenade"] = {
+		ItemID = "item_holy_grenade",
+		DisplayName = "Holy Hand Grenade",
+		Category = "WonderWeapon",
+		MaxStack = 5,
+		IsValuable = true,
+		BlastRadius = 35,
+		Damage = 100
+	}
+}
 
+local function getSelectedItemData(itemName)
+	if ITEM_DATABASE[itemName] then
+		return ITEM_DATABASE[itemName]
+	else
+		return nil
+	end
+end
+
+
+-- =========================================================================
+-- PART 3: ADVANCED SERVER & CLIENT PHYSICS / GRENADE SYSTEM
+-- =========================================================================
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Debris = game:GetService("Debris")
 
--- // Network Setup
 local Remotes = ReplicatedStorage:FindFirstChild("HolyGrenadeRemotes") or Instance.new("Folder")
 Remotes.Name = "HolyGrenadeRemotes"
 Remotes.Parent = ReplicatedStorage
@@ -31,7 +71,6 @@ local ThrowEvent = Remotes:FindFirstChild("ThrowGrenade") or Instance.new("Remot
 ThrowEvent.Name = "ThrowGrenade"
 ThrowEvent.Parent = Remotes
 
--- // Configuration & Physics Constants
 local CONFIG = {
 	FUSE_TIME = 3.0,
 	BLAST_RADIUS = 35,
@@ -41,7 +80,6 @@ local CONFIG = {
 }
 
 if RunService:IsServer() then
-	-- // Spatial Query Optimization Table
 	local overlapParams = OverlapParams.new()
 	overlapParams.FilterType = Enum.RaycastFilterType.Include
 	overlapParams.CollisionGroup = "Default"
@@ -49,7 +87,6 @@ if RunService:IsServer() then
 	local function applyHolyBlast(position, originPlayer)
 		local affectedCharacters = {}
 
-		-- Safe radius check utilizing spatial partitioning math
 		for _, part in ipairs(workspace:GetPartBoundsInRadius(position, CONFIG.BLAST_RADIUS)) do
 			local character = part.Parent
 			if character and character:FindFirstChild("Humanoid") and not affectedCharacters[character] then
@@ -59,7 +96,6 @@ if RunService:IsServer() then
 					local rootPart = character:FindFirstChild("HumanoidRootPart")
 					
 					if rootPart and humanoid.Health > 0 then
-						-- Pure mathematical vector impulse calculation
 						local direction = (rootPart.Position - position).Unit
 						local distanceFactor = 1 - math.clamp((rootPart.Position - position).Magnitude / CONFIG.BLAST_RADIUS, 0, 1)
 						
@@ -83,7 +119,6 @@ if RunService:IsServer() then
 	ThrowEvent.OnServerEvent:Connect(function(player, spawnCFrame)
 		if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
 		
-		-- Strict validation to prevent exploit injections
 		local origin = player.Character.HumanoidRootPart.Position
 		if (spawnCFrame.Position - origin).Magnitude > 15 then return end
 
@@ -97,7 +132,6 @@ if RunService:IsServer() then
 		grenade.AssemblyLinearVelocity = (spawnCFrame.LookVector * CONFIG.THROW_FORCE) + CONFIG.GRAVITY_COMPENSATION
 		grenade.Parent = workspace
 
-		-- Server-side cleanup and detonation thread
 		task.delay(CONFIG.FUSE_TIME, function()
 			if not grenade or not grenade.Parent then return end
 			local currentPos = grenade.Position
@@ -113,7 +147,6 @@ if RunService:IsServer() then
 		end)
 	end)
 else
-	-- Client-Side Input Handler
 	local player = Players.LocalPlayer
 	local mouse = player:GetMouse()
 
@@ -123,8 +156,10 @@ else
 		
 		local tool = character:FindFirstChildOfClass("Tool")
 		if tool and tool.Name == "HolyHandGrenadeTool" then
-			ThrowEvent:FireServer(character.HumanoidRootPart.CFrame + (character.HumanoidRootPart.CFrame.LookVector * 3))
+			local grenadeConfig = getSelectedItemData("HolyHandGrenade")
+			if grenadeConfig then
+				ThrowEvent:FireServer(character.HumanoidRootPart.CFrame + (character.HumanoidRootPart.CFrame.LookVector * 3))
+			end
 		end
 	end)
 end
-
